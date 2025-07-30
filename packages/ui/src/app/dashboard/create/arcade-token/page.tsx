@@ -3,7 +3,15 @@
 import { useState } from 'react';
 import { Gamepad2 } from 'lucide-react';
 import { ArcadeTokenOptions, ArcadeTokenCreationResult } from '@/types/token';
-import { mockCreateArcadeTokenForUI, mockMintTokens, MintResult } from '@/lib/mockFunctions';
+import { createArcadeToken, mintArcadeToken } from '@/lib/arcadeToken';
+
+// Define mint result type
+interface MintResult {
+  success: boolean;
+  error?: string;
+  transactionSignature?: string;
+  amount?: string;
+}
 import { useWallet } from '@solana/wallet-adapter-react';
 import { LoadingModal, MintModal } from '@/components/ui/modal';
 import { TokenForm, TokenResult, MintResult as MintResultComponent, PageHeader } from '@/components/token';
@@ -18,6 +26,7 @@ export default function ArcadeTokenCreatePage() {
     mintAuthority: '',
     metadataAuthority: '',
     pausableAuthority: '',
+    confidentialBalancesAuthority: '',
     permanentDelegateAuthority: '',
     mintKeypair: '',
     keypair: '',
@@ -45,7 +54,7 @@ export default function ArcadeTokenCreatePage() {
     setResult(null);
 
     try {
-      const result = await mockCreateArcadeTokenForUI(arcadeTokenOptions, {
+      const result = await createArcadeToken(arcadeTokenOptions, {
         publicKey,
         connected: true,
       });
@@ -79,7 +88,7 @@ export default function ArcadeTokenCreatePage() {
     setMintResult(null);
 
     try {
-      const result = await mockMintTokens(createdToken.mintAddress, amount, {
+      const result = await mintArcadeToken(createdToken.mintAddress, publicKey.toString(), amount, {
         publicKey,
         connected: true,
       });
@@ -102,6 +111,7 @@ export default function ArcadeTokenCreatePage() {
     mintAuthority: 'Public key',
     metadataAuthority: 'Public key',
     pausableAuthority: 'Public key',
+    confidentialBalancesAuthority: 'Public key',
     permanentDelegateAuthority: 'Public key',
     mintKeypair: 'Base58 encoded keypair',
     keypair: 'Base58 encoded keypair',

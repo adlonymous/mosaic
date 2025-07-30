@@ -3,7 +3,15 @@
 import { useState } from 'react';
 import { DollarSign } from 'lucide-react';
 import { StablecoinOptions, StablecoinCreationResult } from '@/types/token';
-import { mockCreateStablecoinForUI, mockMintTokens, MintResult } from '@/lib/mockFunctions';
+import { createStablecoin, mintStablecoin } from '@/lib/stablecoin';
+
+// Define mint result type
+interface MintResult {
+  success: boolean;
+  error?: string;
+  transactionSignature?: string;
+  amount?: string;
+}
 import { useWallet } from '@solana/wallet-adapter-react';
 import { LoadingModal, MintModal } from '@/components/ui/modal';
 import { TokenForm, TokenResult, MintResult as MintResultComponent, PageHeader } from '@/components/token';
@@ -44,7 +52,7 @@ export default function StablecoinCreatePage() {
     setResult(null);
 
     try {
-      const result = await mockCreateStablecoinForUI(stablecoinOptions, {
+      const result = await createStablecoin(stablecoinOptions, {
         publicKey,
         connected: true,
       });
@@ -78,7 +86,7 @@ export default function StablecoinCreatePage() {
     setMintResult(null);
 
     try {
-      const result = await mockMintTokens(createdToken.mintAddress, amount, {
+      const result = await mintStablecoin(createdToken.mintAddress, publicKey.toString(), amount, {
         publicKey,
         connected: true,
       });

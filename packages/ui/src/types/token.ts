@@ -45,6 +45,7 @@ export interface ArcadeTokenOptions {
   mintAuthority?: string;
   metadataAuthority?: string;
   pausableAuthority?: string;
+  confidentialBalancesAuthority?: string;
   permanentDelegateAuthority?: string;
   mintKeypair?: string;
   rpcUrl?: string;
@@ -63,6 +64,7 @@ export interface ArcadeTokenCreationResult {
     mintAuthority: string;
     metadataAuthority: string;
     pausableAuthority: string;
+    confidentialBalancesAuthority: string;
     permanentDelegateAuthority: string;
     extensions: string[];
   };

@@ -9,7 +9,7 @@ import {
 } from 'gill';
 import { ArcadeTokenOptions, ArcadeTokenCreationResult } from '@/types/token';
 import { WalletAdapter } from '@/types/wallet';
-import { createArcadeTokenInitTransaction } from '@mosaic/sdk';
+import { createArcadeTokenInitTransaction, createMintToTransaction, getMintInfo, decimalAmountToRaw } from '@mosaic/sdk';
 
 /**
  * Validates required fields for arcade token creation
@@ -52,12 +52,15 @@ const setupAuthorities = (
   mintAuthority: Address;
   metadataAuthority: Address;
   pausableAuthority: Address;
+  confidentialBalancesAuthority: Address;
   permanentDelegateAuthority: Address;
 } => {
   const mintAuthority = (options.mintAuthority || signerAddress) as Address;
   const metadataAuthority = (options.metadataAuthority ||
     mintAuthority) as Address;
   const pausableAuthority = (options.pausableAuthority ||
+    mintAuthority) as Address;
+  const confidentialBalancesAuthority = (options.confidentialBalancesAuthority ||
     mintAuthority) as Address;
   const permanentDelegateAuthority = (options.permanentDelegateAuthority ||
     mintAuthority) as Address;
@@ -66,6 +69,7 @@ const setupAuthorities = (
     mintAuthority,
     metadataAuthority,
     pausableAuthority,
+    confidentialBalancesAuthority,
     permanentDelegateAuthority,
   };
 };
@@ -82,65 +86,9 @@ const createRpcClient = (rpcUrl?: string): Rpc<SolanaRpcApi> => {
  * Creates an arcade token using the web-compatible version of the CLI script
  * @param options - Configuration options for the arcade token
  * @param wallet - Solana wallet instance
- * @returns Promise that resolves to the transaction signature
+ * @returns Promise that resolves to the arcade token creation result
  */
 export const createArcadeToken = async (
-  options: ArcadeTokenOptions,
-  wallet: WalletAdapter
-): Promise<string> => {
-  try {
-    validateRequiredFields(options);
-    const decimals = validateAndParseDecimals(options.decimals);
-    const signerAddress = validateWalletAndGetSignerAddress(wallet);
-
-    // Generate mint keypair
-    const mintKeypair = await generateKeyPairSigner();
-
-    // Set authorities (default to signer if not provided)
-    const {
-      mintAuthority,
-      metadataAuthority,
-      pausableAuthority,
-      permanentDelegateAuthority,
-    } = setupAuthorities(options, signerAddress);
-
-    // Create RPC client
-    const rpc = createRpcClient(options.rpcUrl);
-
-    // Create arcade token transaction using SDK
-    const transaction = await createArcadeTokenInitTransaction(
-      rpc,
-      options.name,
-      options.symbol,
-      decimals,
-      options.uri || '',
-      mintAuthority,
-      mintKeypair.address,
-      signerAddress as Address,
-      metadataAuthority,
-      pausableAuthority,
-      permanentDelegateAuthority
-    );
-
-    // Sign the transaction
-    const signedTransaction =
-      await signTransactionMessageWithSigners(transaction);
-    const signature = getSignatureFromTransaction(signedTransaction);
-
-    // Return the transaction signature
-    return signature;
-  } catch (error) {
-    throw new Error(
-      error instanceof Error ? error.message : 'Unknown error occurred'
-    );
-  }
-};
-
-/**
- * Simplified version for UI integration that handles the transaction conversion
- * This version works with the existing UI structure
- */
-export const createArcadeTokenForUI = async (
   options: ArcadeTokenOptions,
   wallet: WalletAdapter
 ): Promise<ArcadeTokenCreationResult> => {
@@ -157,6 +105,7 @@ export const createArcadeTokenForUI = async (
       mintAuthority,
       metadataAuthority,
       pausableAuthority,
+      confidentialBalancesAuthority,
       permanentDelegateAuthority,
     } = setupAuthorities(options, signerAddress);
 
@@ -175,6 +124,7 @@ export const createArcadeTokenForUI = async (
       signerAddress as Address,
       metadataAuthority,
       pausableAuthority,
+      confidentialBalancesAuthority,
       permanentDelegateAuthority
     );
 
@@ -195,14 +145,83 @@ export const createArcadeTokenForUI = async (
         mintAuthority: mintAuthority,
         metadataAuthority: metadataAuthority,
         pausableAuthority: pausableAuthority,
+        confidentialBalancesAuthority: confidentialBalancesAuthority,
         permanentDelegateAuthority: permanentDelegateAuthority,
         extensions: [
           'Metadata',
           'Pausable',
           'Default Account State (Blocklist)',
+          'Confidential Balances',
           'Permanent Delegate',
         ],
       },
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred',
+    };
+  }
+};
+
+/**
+ * Mints arcade token tokens to a recipient address
+ * @param mintAddress - The mint address of the token
+ * @param recipient - The recipient wallet address
+ * @param amount - The decimal amount to mint (e.g., "1.5")
+ * @param wallet - Solana wallet instance (used as mint authority and fee payer)
+ * @param rpcUrl - Optional RPC URL
+ * @returns Promise that resolves to the mint result
+ */
+export const mintArcadeToken = async (
+  mintAddress: string,
+  recipient: string,
+  amount: string,
+  wallet: WalletAdapter,
+  rpcUrl?: string
+): Promise<{ success: boolean; error?: string; transactionSignature?: string; amount?: string }> => {
+  try {
+    // Validate wallet connection
+    if (!wallet.publicKey) {
+      throw new Error('Wallet not connected');
+    }
+
+    // Create RPC client
+    const url = rpcUrl || 'https://api.devnet.solana.com';
+    const rpc: Rpc<SolanaRpcApi> = createSolanaRpc(url);
+
+    // Get mint information to determine decimals
+    const mintInfo = await getMintInfo(rpc, mintAddress as Address);
+    const decimals = mintInfo.decimals;
+
+    // Parse and validate amount
+    const decimalAmount = parseFloat(amount);
+    if (isNaN(decimalAmount) || decimalAmount <= 0) {
+      throw new Error('Amount must be a positive number');
+    }
+
+    // Convert decimal amount to raw amount
+    const rawAmount = decimalAmountToRaw(decimalAmount, decimals);
+
+    // Create mint transaction
+    const transaction = await createMintToTransaction(
+      rpc,
+      mintAddress as Address,
+      recipient as Address,
+      rawAmount,
+      wallet.publicKey as Address, // Use wallet as mint authority
+      wallet.publicKey as Address  // Use wallet as fee payer
+    );
+
+    // Sign the transaction
+    const signedTransaction = await signTransactionMessageWithSigners(transaction);
+    const signature = getSignatureFromTransaction(signedTransaction);
+
+    // Return success result
+    return {
+      success: true,
+      transactionSignature: signature,
+      amount: amount,
     };
   } catch (error) {
     return {
