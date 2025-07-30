@@ -6,6 +6,14 @@ import {
 } from '@/types/token';
 import { WalletAdapter } from '@/types/wallet';
 
+// Mock mint result interface
+export interface MintResult {
+  success: boolean;
+  error?: string;
+  transactionSignature?: string;
+  amount?: string;
+}
+
 // Mock function for stablecoin creation
 export const mockCreateStablecoinForUI = async (
   options: StablecoinOptions,
@@ -65,6 +73,33 @@ export const mockCreateStablecoinForUI = async (
     return {
       success: false,
       error: 'Mock error: Failed to create stablecoin (simulated failure)',
+    };
+  }
+};
+
+// Mock function for minting tokens
+export const mockMintTokens = async (
+  mintAddress: string,
+  amount: string,
+  wallet: WalletAdapter
+): Promise<MintResult> => {
+  // Simulate network delay
+  await new Promise(resolve => setTimeout(resolve, 1500));
+
+  // Simulate random success/failure for testing
+  const isSuccess = Math.random() > 0.1; // 90% success rate
+
+  if (isSuccess) {
+    return {
+      success: true,
+      transactionSignature:
+        'mock_mint_signature_' + Math.random().toString(36).substring(7),
+      amount: amount,
+    };
+  } else {
+    return {
+      success: false,
+      error: 'Mock error: Failed to mint tokens (simulated failure)',
     };
   }
 };
